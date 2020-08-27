@@ -45,25 +45,39 @@ class Inserter(Machine):
         self.current_foldtype = ""
 
 
-def create_graph():
+def printer_define():
     xp251 = Printing('XP251', 4224000, 30, True, ["Color", "Mono"], 2, 40)
     xp13B = Printing('XP13', 4224000, 30, False, ["Color", "Mono"], 2, 40)
     wp01 = Printing('WP01', 2112000, 30, False, ["Color", "Mono"], 1, 30)
     jm01 = Printing('JM01', 1056000, 30, True, ["Color", "Mono"], 1, 20)
     indigo = Printing('Indigo', 132, 30, True, ["Color"], 0, 0)
     oce = Printing('OCE', 132, 30, True, ["Mono"], 0, 0)
+    printers = [xp251, xp13B, wp01, jm01, oce, indigo]
+    return printers
+
+
+def binder_define():
     pf7 = Bindery('PF7', 2000, 20, 0, 'PB', 1, 0, 27)
     ibis2 = Bindery('IBIS2', 1500, 20, 1, 'SS', 1, 2, 18)
     ibis3 = Bindery('IBIS3', 1500, 20, 0, 'SS', 1, 2, 18)
+    binders = [pf7, ibis2, ibis3]
+    return binders
+
+def inserter_define():
     cmc401 = Inserter('CMC401', 8000, 60, 'Env', 4, 4, 1, False, 18)
     cmc402 = Inserter('CMC402', 8000, 60, 'Env', 4, 3, 2, False, 18)
     cmcevo1 = Inserter('CMCEVO1', 10000, 60, 'Env', 5, 3, 2, False, 18)
     cmcevo2 = Inserter('CMCEVO2', 10000, 60, 'Env', 5, 3, 2, False, 18)
     cmceasy = Inserter('CMCEASY', 8000, 60, 'Env', 7, 3, 1, True, 18)
     cmc250 = Inserter('CMC250', 4000, 60, 'Env', 5, 3, 0, False, 0)
-    printers = [xp251, xp13B, wp01, jm01, oce, indigo]
-    binders = [pf7, ibis2, ibis3]
     inserters = [cmc401, cmc402, cmcevo1, cmcevo2, cmceasy, cmc250]
+    return inserters
+
+
+def create_graph():
+    printers = printer_define()
+    binders = binder_define()
+    inserters = inserter_define()
     machineList = printers + binders +inserters
     G = nx.DiGraph()
     G.add_node("start")

@@ -4,39 +4,46 @@ import time
 import json
 import MachineDefine
 import networkx as nx
+import math
 
-
-class Job(object):
-    def __init__(self, jobNum, productType, totalPages, totalRecords, collateral, matching, perf, colorsetup, insertType, rolls, roll_size,paperProfile, foldType=None, cover=None,):
-        """
-        groupings for jobs
-        :param jobNum: list of jobNumbers
-        :param productType: type either SS PB Letter
-        :param totalPages: total number of pages
-        :param totalRecords: total amount of pieces
-        :param collateral: total number of collateral pieces
-        :param matching: number of matching
-        :param perf: Boolean if perf or not
-        :param foldType: tri half flat
-        :param cover: how many covers
-        :param rolls: number of webs needed
-        :param insertType: either poly or env or none
-        :param colorsetup: is it color or not
-        """
+class Order(object):
+    def __init__(self, jobNum, productType, totalPages, totalRecords, collateral, matching, perf, foldType, cover, insertType, colorsetup, paperProfile):
         self.jobNum = jobNum
         self.productType = productType
         self.totalPages = totalPages
         self.totalRecords = totalRecords
+        self.pagesPerRecord = totalPages/totalRecords
         self.collateral = collateral
         self.matching = matching
         self.perf = perf
         self.foldType = foldType
         self.cover = cover
-        self.rolls = rolls
-        self.roll_size = roll_size
         self.insertType = insertType
         self.colorsetup = colorsetup
         self.paperProfile = paperProfile
+        self.insertGroup = []
+
+    def other_attribute(self):
+        inserters = MachineDefine.inserter_define()
+        for item in inserters:
+            if self.collateral < item.num_pockets and self.matching < item.match and self.insertType == "Envelope":
+                self.insertGroup.append(item.name)
+
+    def batchable_attributes(self):
+        batchable = str(self.productType) + ',' + str(self.insertGroup) + ',' + \
+                    str(self.perf) + ',' + str(self.foldType) + ',' + \
+                    str(self.colorsetup) + ',' + str(self.paperProfile)
+        return batchable
+
+
+class Bucket(Order):
+    def __init__(self, jobNum, productType, totalPages, totalRecords, collateral, matching, perf, foldType, cover, insertType, colorsetup, paperProfile):
+        super().__init__(jobNum, productType, totalPages, totalRecords, collateral, matching, perf, foldType, cover, insertType, colorsetup, paperProfile)
+        self.rolls = 0
+        self.roll_size = " "
+
+    def decide_rolls(self):
+        pass
 
 
 def create_json_template():
@@ -88,12 +95,14 @@ def create_json_template():
                                 "PDFPages": " ",
                                 "BatchID": "620574-2",
                                 "NumberRecords": " ",
+                                "MinReosource": " ",
+                                "MaxResource": " ",
                                 "PressProfile": "17in Letters",
                                 "PaperProfile": "17in 50#",
                                 "InputMethod": "12x18-60lb-CnC-Letter",
                                 "ColorSetup": " ",
                                 "FoldType": " ",
-                                "InsertType": " ",
+                                "insertType": " ",
                                 "ImpositionLocation": "8.5x11_Slit-n-merge_34in_Dual_roll_in YURI SPECIAL"
                             },
                             "path": "613817\\LT_Slit-Merge\\613817-101969-BillsPerf-Remit-NC-PG4-LT_Slit-Merge-PG-001.PDF"
@@ -165,171 +174,78 @@ def random_job(jobNum,perf=None,match=None, color_setup=None, fold=None, records
             fillerDone = False
         enclosures.append(s)
         i += 1
-    job_attributes = {
-      "destination": {
-        "name": "{{organizationId}}"
-      },
-      "orderData": {
-        "sourceOrderId": "613817_{{$randomInt}}",
-        "customerName": "HEALTHPLAN SERVICES, INC",
-        "purchaseOrderNumber": jobNum,
-        "email": "Testing@onieldata.com",
-        "items": [
-          {
-            "description": {"JobNumber":620574, "FileNumber":102637},
-            "sku": "Letter",
-            "sourceItemId": "BillsPerf_Remit_NC_PG4",
-            "barcode": "{{$randomInt}}",
-            "quantity": 1,
-            "extraData": {
-              "Plant": "Texas"
-            },
-            "components": [
-              {
-                "code": "Letter",
-                "fetch": False,
-                "localFile": True,
-                "attributes": {
-                  "Enclosure1": enclosures[0],
-                  "Enclosure2": enclosures[1],
-                  "Enclosure3": enclosures[2],
-                  "Enclosure4": enclosures[3],
-                  "Enclosure5": enclosures[4],
-                  "Enclosure6": enclosures[5],
-                  "Enclosure7": enclosures[6],
-                  "Enclosure8": enclosures[7],
-                  "Enclosure9": enclosures[8],
-                  "Enclosure10": enclosures[9],
-                  "Enclosure11": enclosures[10],
-                  "Enclosure12": enclosures[11],
-                  "Enclosure13": enclosures[12],
-                  "Enclosure14": enclosures[13],
-                  "Perforated": perf,
-                  "Matching": str(match),
-                  "FileNumber": "102637",
-                  "Substrate": " ",
-                  "BeginBarCode": "17377479878",
-                  "EndBarCode": "17377480017",
-                  "PDFPages": pages,
-                  "BatchID": "620574-2",
-                  "NumberRecords": records,
-                  "PressProfile": "17in Letters",
-                  "PaperProfile": "17in 50#",
-                  "InputMethod": "12x18-60lb-CnC-Letter",
-                  "ColorSetup": color_setup,
-                  "FoldType": fold,
-                  "InsertType":insertType,
-                  "ImpositionLocation": "8.5x11_Slit-n-merge_34in_Dual_roll_in YURI SPECIAL"
-                },
-                "path": "613817\\LT_Slit-Merge\\613817-101969-BillsPerf-Remit-NC-PG4-LT_Slit-Merge-PG-001.PDF"
-              },
-              {
-                "code": "Collateral",
-                "fetch": False,
-                "localFile": True,
-                "path": "test"
-              }
-            ]
-          }
-        ],
-        "stockItems": [],
-        "shipments": [
-          {
-            "shipByDate": "2020-06-26",
-            "slaDays": slaDays,
-            "canShipEarly": True,
-            "shipTo": {
-              "name": "Test",
-              "companyName": "Test",
-              "address1": "Test",
-              "state": "Test",
-              "town": "Test",
-              "postcode": "Test",
-              "isoCountry": "Test"
-            },
-            "carrier": {
-              "code": "customer",
-              "service": "delivery"
-            }
-          }
-        ]
-      }
-    }
-    #with open('D:\\Personal Projects\\JobSchedule\\JobFiles\\JobNumber'+str(job_attributes["orderData"]['purchaseOrderNumber'])+'.txt', 'w') as file:
-        #file.write(json.dumps(job_attributes,indent=4))
-    return job_attributes
+    listed_attributes = [perf,match,records,pages,insertType,fold,color_setup]
+    with open('D:\\Personal Projects\\JobSchedule\\JSONTemplate.txt') as json_file:
+        data = json.load(json_file)
+        attributes = ['Perforated', 'Matching', 'NumberRecords', 'PDFPages', 'insertType', 'FoldType','ColorSetup']
+        for i in range(1,15):
+            data['orderData']['items'][0]['components'][0]['attributes']['Enclosure'+str(i)] = enclosures[i-1]
+        j = 0
+        for item in attributes:
+            data['orderData']['items'][0]['components'][0]['attributes'][item] = listed_attributes[j]
+            j += 1
+        data['orderData']['items'][0]['description']['JobNumber'] = jobNum
+        data['orderData']['shipments'][0]['slaDays'] = slaDays
+    return data
 
 
-def below_target(open_buckets,target,job,completed_jobs, key, i, j):
-    diff = target - job['orderData']['items'][i]['components'][j]['attributes']['PDFPages']
+def below_target(order,key,target,open_buckets,completed_jobs):
+    diff = target - order.totalPages
     if key in open_buckets:
         if any(l <= diff for l in open_buckets[key].keys()):
             list_key = list(open_buckets[key].keys())
             list_key.sort(reverse=True)
             for k in list_key:
-                if k > diff:
-                    pass
-                elif k == diff:
-                    open_buckets[key][k].append(job)
+                if k == diff:
+                    open_buckets[key][k].append(order)
                     completed_jobs.append(open_buckets[key][k])
                     open_buckets[key].pop(k)
                     break
-                else:
-                    ke = k + job['orderData']['items'][i]['components'][j]['attributes']['PDFPages']
-                    open_buckets[key][k].append(job)
+                elif k < diff:
+                    ke = k + order.totalPages
+                    open_buckets[key][k].append(order)
                     open_buckets[key][ke] = open_buckets[key][k]
                     open_buckets[key].pop(k)
                     break
         else:
-            open_buckets[key][job['orderData']['items'][i]['components'][j]['attributes']['PDFPages']] = [job]
+            open_buckets[key][order.totalPages] = [order]
     else:
-        open_buckets[key] = {job['orderData']['items'][i]['components'][j]['attributes']['PDFPages']: [job]}
-    return open_buckets, completed_jobs
+        open_buckets[key] = {order.totalPages: [order]}
+
+    return open_buckets,completed_jobs
 
 
-def find_matching_jobs(job, open_buckets=None, completed_jobs=None):
+def find_matching_jobs(order,target=180000, open_buckets=None, completed_jobs=None):
     if open_buckets is None:
         open_buckets = {}
     if completed_jobs is None:
         completed_jobs = []
-    batchableAttributes = ['Perforated', 'Matching', 'ColorSetup', 'FoldType', 'PressProfile', 'InsertType']
-    target = 180000
-    for i in range(len(job['orderData']['items'])):
-        # keys: Code,Perforated,Matching,Colorsetup,Foldtype, pressprofile, number of enclosures
-        for j in range(len(job['orderData']['items'][i]['components'])):
-            if job['orderData']['items'][i]['components'][j]['code'] == 'Collateral':
-                continue
-            keys = ''
-            keyCheck = job['orderData']['items'][i]['components'][j]['code']
-            keys += str(keyCheck) + ','
-            for item in range(len(batchableAttributes)):
-                keyCheck = job['orderData']['items'][i]['components'][j]['attributes'][batchableAttributes[item]]
-                keys += str(keyCheck) + ','
-            numEnclosures = 0
-            k = 1
-            while k < 15:
-                keyCheck = job['orderData']['items'][i]['components'][j]['attributes']["Enclosure" + str(k)]
-                if keyCheck:
-                    numEnclosures += 1
-                    k += 1
-                else:
-                    k = 15
-            keys += str(numEnclosures)
-            if job['orderData']['items'][i]['components'][j]['attributes']['PDFPages'] == target:
-                completed_jobs.append([job])
-            elif job['orderData']['items'][i]['components'][j]['attributes']['PDFPages'] > target:
-                counter = 1
-                while job['orderData']['items'][i]['components'][j]['attributes']['PDFPages'] > target:
-                    tempjob = job
-                    tempjob['orderData']['items'][i]["description"]["FileNumber"] = str(job['orderData']['items'][i]["description"]["FileNumber"]) + "-" + str(counter)
-                    tempjob['orderData']['items'][i]['components'][j]['attributes']['PDFPages'] = 180000
-                    completed_jobs.append([tempjob])
-                    job['orderData']['items'][i]['components'][j]['attributes']['PDFPages'] -= target
-                    counter += 1
-                job['orderData']['items'][i]["description"]["FileNumber"] = str(job['orderData']['items'][i]["description"]["FileNumber"]) + "-" + str(counter)
-                open_buckets, completed_jobs = below_target(open_buckets, target, job, completed_jobs, keys, i, j)
+    keys = order.batchable_attributes()
+    if order.totalPages == target:
+        completed_jobs.append(order)
+    elif order.totalPages > target:
+        counter = 1
+        while order.totalPages > target:
+            temporder = order
+            temporder.jobNum = str(order.jobNum) + "-" + str(counter)
+            if target % temporder.pagesPerRecord == 0:
+                temporder.totalPages = target
+                temporder.totalRecords = target/temporder.pagesPerRecord
+                completed_jobs.append(temporder)
+                order.totalPages -= target
+                order.totalRecords -= target/order.pagesPerRecord
             else:
-                open_buckets, completed_jobs = below_target(open_buckets, target, job, completed_jobs, keys, i, j)
+                records = math.floor(target/temporder.pagesPerRecord)
+                temporder.totalPages = records*temporder.pagesPerRecord
+                temporder.totalRecords = records
+                completed_jobs.append(temporder)
+                order.totalPages -= temporder.totalPages
+                order.totalRecords -= temporder.totalRecords
+            counter += 1
+        order.jobNum = str(order.jobNum) + "-" + str(counter)
+        open_buckets,completed_jobs = below_target(order, keys, target, open_buckets, completed_jobs)
+    else:
+        open_buckets, completed_jobs = below_target(order, keys, target, open_buckets, completed_jobs)
     return open_buckets, completed_jobs
 
 
@@ -347,8 +263,6 @@ def json_to_class(job):
                 perf = None
                 foldType = None
                 cover = None
-                rolls = None
-                roll_size = None
                 insertType = None
                 colorsetup = None
                 paperProfile = None
@@ -368,13 +282,12 @@ def json_to_class(job):
                 matching = job['orderData']['items'][i]['components'][j]['attributes']['Matching']
                 perf = job['orderData']['items'][i]['components'][j]['attributes']['Perforated']
                 foldType = job['orderData']['items'][i]['components'][j]['attributes']['FoldType']
-                cover = cover
-                rolls = rolls
-                roll_size = roll_size
+                cover = None
                 insertType = job['orderData']['items'][i]['components'][j]['attributes']['insertType']
                 colorsetup = job['orderData']['items'][i]['components'][j]['attributes']['ColorSetup']
                 paperProfile = job['orderData']['items'][i]['components'][j]['attributes']['PaperProfile']
-            jns = Job(jobNum,productType,totalPages,totalRecords,collateral,matching,perf,colorsetup,insertType,rolls,roll_size,paperProfile,foldType,cover)
+            jns = Order(jobNum, productType, totalPages, totalRecords, collateral, matching, perf, foldType, cover, insertType, colorsetup, paperProfile)
+            jns.other_attribute()
             jobs.append(jns)
     return jobs
 
@@ -397,6 +310,7 @@ def job_path(graph, j):
 
 
 if __name__ == '__main__':
+    """
     g = MachineDefine.create_graph()
     #j = Job(111111,"Letter", 180000, 36000,4,0,False,"Color","Env",2, 36, foldType="Tri")
     jn = 100000
@@ -407,4 +321,7 @@ if __name__ == '__main__':
         jn += 1
         open_buckets, completed_jobs = find_matching_jobs(job,open_buckets,completed_jobs)
     print(open_buckets)
-    print(completed_jobs)
+    print(completed_jobs)"""
+    #create_json_template()
+    #random_job(100000)
+    print(math.floor(4/3))
