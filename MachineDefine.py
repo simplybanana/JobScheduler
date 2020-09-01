@@ -205,7 +205,15 @@ def create_graph():
 
 
 def update_weights(graph, order):
-    job_level = order[0]
+    job_level = order.jobNum[0]
+    if job_level.productType != "Perfect Bind":
+        if order.totalPages > 80000:
+            order.rolls = 2
+        elif order.totalPages > 4000:
+            order.rolls = 1
+        else:
+            order.rolls = 0
+        order.roll_size = int(job_level.paperProfile[:2]) * order.rolls
     for vertex in graph:
         for edge in vertex.adjacent:
             target = edge.id
@@ -214,10 +222,16 @@ def update_weights(graph, order):
                 weight = 0
             elif not target.running:
                 weight = float("inf")
+            elif order.rolls > target.rolls:
+                weight = float("inf")
             elif type(target) == Printing:
                 if job_level.perf and not target.perf:
                     weight = float("inf")
                 elif job_level.colorsetup not in target.color:
+                    weight = float("inf")
+                elif int(job_level.paperProfile[:2])*order.rolls > target.max_roll_size:
+                    weight = float("inf")
+                elif order.rolls == 0 and target.rolls != 0:
                     weight = float("inf")
                 else:
                     if job_level.colorsetup != target.previous_color:
@@ -228,12 +242,16 @@ def update_weights(graph, order):
             elif type(target) == Bindery:
                 if job_level.productType != target.type:
                     weight = float("inf")
+                elif int(job_level.paperProfile[:2]) > target.max_roll_size:
+                    weight = float("inf")
                 else:
                     weight = target.wait_time + (order.totalRecords / target.run_speed) * 60 + target.setup_time
             elif type(target) == Inserter:
                 if job_level.insertType != target.type:
                     weight = float("inf")
                 elif target not in order.insertGroup:
+                    weight = float("inf")
+                elif order.rolls == 0 and target.flat is False:
                     weight = float("inf")
                 else:
                     if job_level.foldType == target.previous_foldtype:
@@ -242,13 +260,6 @@ def update_weights(graph, order):
                         target.setup_time = 30
                     weight = target.wait_time + (order.totalRecords / target.run_speed) * 60 + target.setup_time
             vertex.adjacent[edge] = weight
-    """
-    for parent, target in graph.edges:
-
-        elif job.rolls > target.rolls:
-            graph[parent][target]['weight'] = float("inf")
-
-    return graph"""
 
 
 if __name__ == "__main__":
