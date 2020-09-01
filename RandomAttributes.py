@@ -3,8 +3,9 @@ import string
 import time
 import json
 import MachineDefine
-import networkx as nx
 import math
+from copy import deepcopy
+
 
 class Order(object):
     def __init__(self, jobNum, productType, totalPages, totalRecords, collateral, matching, perf, foldType, cover, insertType, colorsetup, paperProfile):
@@ -25,9 +26,11 @@ class Order(object):
 
     def other_attribute(self):
         inserters = MachineDefine.inserter_define()
+        insertgroup = []
         for item in inserters:
             if self.collateral < item.num_pockets and self.matching < item.match and self.insertType == "Envelope":
-                self.insertGroup.append(item.name)
+                insertgroup.append(item.name)
+        self.insertGroup = insertgroup
 
     def batchable_attributes(self):
         batchable = str(self.productType) + ',' + str(self.insertGroup) + ',' + \
@@ -36,14 +39,20 @@ class Order(object):
         return batchable
 
 
-class Bucket(Order):
-    def __init__(self, jobNum, productType, totalPages, totalRecords, collateral, matching, perf, foldType, cover, insertType, colorsetup, paperProfile):
-        super().__init__(jobNum, productType, totalPages, totalRecords, collateral, matching, perf, foldType, cover, insertType, colorsetup, paperProfile)
+class Bucket(object):
+    def __init__(self, jobs, totalPages, totalRecords, collateral, matching, insertGroup):
+        self.jobs = jobs
+        self.totalPages = totalPages
+        self.totalRecords = totalRecords
+        self.collateral = collateral
+        self.matching = matching
+        self.insertGroup = insertGroup
         self.rolls = 0
         self.roll_size = " "
 
-    def decide_rolls(self):
-        pass
+    def decide_rolls(self, graph):
+        graph = MachineDefine.update_weights(graph, self)
+        return graph
 
 
 def create_json_template():
@@ -150,7 +159,7 @@ def random_job(jobNum,perf=None,match=None, color_setup=None, fold=None, records
     if match is None:
         match = random.choice([0,2,3])
     if records is None:
-        records = random.randint(0,5000)
+        records = random.randint(1,5000)
     if pages is None:
         pages = records * random.randint(2,100)
     jobNum = jobNum
@@ -170,7 +179,7 @@ def random_job(jobNum,perf=None,match=None, color_setup=None, fold=None, records
             letters = string.ascii_lowercase
             s = ''.join(random.choice(letters) for j in range(6))
         else:
-            s = ''
+            s = ' '
             fillerDone = False
         enclosures.append(s)
         i += 1
@@ -186,6 +195,7 @@ def random_job(jobNum,perf=None,match=None, color_setup=None, fold=None, records
             j += 1
         data['orderData']['items'][0]['description']['JobNumber'] = jobNum
         data['orderData']['shipments'][0]['slaDays'] = slaDays
+        data['orderData']['purchaseOrderNumber'] = str(jobNum)
     return data
 
 
@@ -211,48 +221,47 @@ def below_target(order,key,target,open_buckets,completed_jobs):
             open_buckets[key][order.totalPages] = [order]
     else:
         open_buckets[key] = {order.totalPages: [order]}
-
     return open_buckets,completed_jobs
 
 
-def find_matching_jobs(order,target=180000, open_buckets=None, completed_jobs=None):
+def find_matching_jobs(jobs,target=180000, open_buckets=None, completed_jobs=None):
     if open_buckets is None:
         open_buckets = {}
     if completed_jobs is None:
         completed_jobs = []
-    keys = order.batchable_attributes()
-    if order.totalPages == target:
-        completed_jobs.append(order)
-    elif order.totalPages > target:
-        counter = 1
-        while order.totalPages > target:
-            temporder = order
-            temporder.jobNum = str(order.jobNum) + "-" + str(counter)
-            if target % temporder.pagesPerRecord == 0:
-                temporder.totalPages = target
-                temporder.totalRecords = target/temporder.pagesPerRecord
-                completed_jobs.append(temporder)
-                order.totalPages -= target
-                order.totalRecords -= target/order.pagesPerRecord
-            else:
-                records = math.floor(target/temporder.pagesPerRecord)
-                temporder.totalPages = records*temporder.pagesPerRecord
-                temporder.totalRecords = records
-                completed_jobs.append(temporder)
+    for order in jobs:
+        if order.productType == "Collateral":
+            continue
+        keys = order.batchable_attributes()
+        if order.totalPages == target:
+            completed_jobs.append([order])
+        elif order.totalPages > target:
+            counter = 1
+            while order.totalPages > target:
+                temporder = deepcopy(order)
+                temporder.jobNum = str(order.jobNum) + "-" + str(counter)
+                if target % temporder.pagesPerRecord == 0:
+                    temporder.totalPages = target
+                    temporder.totalRecords = target/temporder.pagesPerRecord
+                else:
+                    records = math.floor(target/temporder.pagesPerRecord)
+                    temporder.totalPages = records*temporder.pagesPerRecord
+                    temporder.totalRecords = records
+                completed_jobs.append([temporder])
                 order.totalPages -= temporder.totalPages
                 order.totalRecords -= temporder.totalRecords
-            counter += 1
-        order.jobNum = str(order.jobNum) + "-" + str(counter)
-        open_buckets,completed_jobs = below_target(order, keys, target, open_buckets, completed_jobs)
-    else:
-        open_buckets, completed_jobs = below_target(order, keys, target, open_buckets, completed_jobs)
+                counter += 1
+            order.jobNum = str(order.jobNum) + "-" + str(counter)
+            open_buckets, completed_jobs = below_target(order, keys, target, open_buckets, completed_jobs)
+        else:
+            open_buckets, completed_jobs = below_target(order, keys, target, open_buckets, completed_jobs)
     return open_buckets, completed_jobs
 
 
-def json_to_class(job):
+def json_to_order(job):
     jobs = []
     for i in range(len(job['orderData']['items'])):
-        for j in range(len(job['orderData']['items'][i]['componenets'])):
+        for j in range(len(job['orderData']['items'][i]['components'])):
             jobNum = job['orderData']["purchaseOrderNumber"]
             productType = job['orderData']['items'][i]['components'][j]['code']
             if productType == 'Collateral':
@@ -273,7 +282,7 @@ def json_to_class(job):
                 numEnclosures = 0
                 while k < 15:
                     keyCheck = job['orderData']['items'][i]['components'][j]['attributes']["Enclosure" + str(k)]
-                    if keyCheck:
+                    if keyCheck != " ":
                         numEnclosures += 1
                         k += 1
                     else:
@@ -287,41 +296,49 @@ def json_to_class(job):
                 colorsetup = job['orderData']['items'][i]['components'][j]['attributes']['ColorSetup']
                 paperProfile = job['orderData']['items'][i]['components'][j]['attributes']['PaperProfile']
             jns = Order(jobNum, productType, totalPages, totalRecords, collateral, matching, perf, foldType, cover, insertType, colorsetup, paperProfile)
-            jns.other_attribute()
+            if jns.productType != "Collateral":
+                jns.other_attribute()
             jobs.append(jns)
     return jobs
 
 
-def job_path(graph, j):
-    MachineDefine.update_weights(graph, j)
-    path = nx.dijkstra_path(graph, 'start', 'shipping')
-    time = nx.dijkstra_path_length(graph, 'start', 'shipping')
-    for i in path:
-        if type(i) != str:
-            i.queue.append(j.jobNum)
-            if type(i) == MachineDefine.Printing:
-                i.wait_time += (j.totalPages / i.run_speed) * 60
-                i.current_roll = j.roll_size
-                i.current_color = j.colorsetup
-            elif type(i) == MachineDefine.Inserter:
-                i.wait_time += (j.totalRecords / i.run_speed) * 60
-                i.current_foldtype = j.foldType
-    return graph, path, time
+def order_to_bucket(jobs):
+    jobNums_in_Bucket = []
+    totalbucketpages = 0
+    totalrecordpages = 0
+    collateral_bucket = []
+    matching_bucket = []
+    for i in jobs:
+        jobNums_in_Bucket.append(i)
+        totalbucketpages += i.totalPages
+        totalrecordpages += i.totalRecords
+        collateral_bucket.append(i.collateral)
+        matching_bucket.append(i.matching)
+    bucket = Bucket(jobNums_in_Bucket,totalbucketpages,totalrecordpages,collateral_bucket,matching_bucket,jobs[0].insertGroup)
+    return bucket
 
 
 if __name__ == '__main__':
-    """
     g = MachineDefine.create_graph()
     #j = Job(111111,"Letter", 180000, 36000,4,0,False,"Color","Env",2, 36, foldType="Tri")
     jn = 100000
-    open_buckets = {}
-    completed_jobs = []
-    for i in range(5):
+    openbuckets = {}
+    completedjobs = []
+    for i in range(1000):
         job = random_job(jn,color_setup="Color1",fold="Tri")
+        job_class = json_to_order(job)
         jn += 1
-        open_buckets, completed_jobs = find_matching_jobs(job,open_buckets,completed_jobs)
-    print(open_buckets)
-    print(completed_jobs)"""
-    #create_json_template()
-    #random_job(100000)
-    print(math.floor(4/3))
+        openbuckets, completedjobs = find_matching_jobs(job_class,target=180000,open_buckets=openbuckets,completed_jobs=completedjobs)
+    """
+    for item in completedjobs:
+        print(item[0].jobNum, item[0].totalPages)
+        #order_to_bucket(item)
+    print(openbuckets)
+    for group in openbuckets:
+        print(group)
+
+        
+        for bucket in openbuckets[group]:
+            print(bucket,openbuckets[group][bucket])
+            break
+            """
