@@ -28,7 +28,7 @@ class Order(object):
         inserters = MachineDefine.inserter_define()
         insertgroup = []
         for item in inserters:
-            if self.collateral < item.num_pockets and self.matching < item.match and self.insertType == "Envelope":
+            if self.collateral < item.num_pockets and self.matching < item.match and self.insertType == "Env":
                 insertgroup.append(item.name)
         self.insertGroup = insertgroup
 
@@ -52,7 +52,8 @@ class Bucket(object):
 
     def decide_rolls(self, graph):
         graph = MachineDefine.update_weights(graph, self)
-        return graph
+        path = graph.dijkstra(graph.get_vertex('start'),graph.get_vertex('shipping'))
+        return graph, path
 
 
 def create_json_template():
@@ -168,7 +169,7 @@ def random_job(jobNum,perf=None,match=None, color_setup=None, fold=None, records
     if fold is None:
         fold = random.choice(["Flat","Tri","Half"])
     slaDays = random.choice([1,2,3,4,5])
-    insertType = "Envelope"
+    insertType = "Env"
     enclosures = []
     i = 0
     fillerDone = True
@@ -208,7 +209,8 @@ def below_target(order,key,target,open_buckets,completed_jobs):
             for k in list_key:
                 if k == diff:
                     open_buckets[key][k].append(order)
-                    completed_jobs.append(open_buckets[key][k])
+                    tempbucket = order_to_bucket(openbuckets[key][k])
+                    completed_jobs.append(tempbucket)
                     open_buckets[key].pop(k)
                     break
                 elif k < diff:
@@ -234,7 +236,8 @@ def find_matching_jobs(jobs,target=180000, open_buckets=None, completed_jobs=Non
             continue
         keys = order.batchable_attributes()
         if order.totalPages == target:
-            completed_jobs.append([order])
+            tempbucket = order_to_bucket([order])
+            completed_jobs.append(tempbucket)
         elif order.totalPages > target:
             counter = 1
             while order.totalPages > target:
@@ -247,7 +250,8 @@ def find_matching_jobs(jobs,target=180000, open_buckets=None, completed_jobs=Non
                     records = math.floor(target/temporder.pagesPerRecord)
                     temporder.totalPages = records*temporder.pagesPerRecord
                     temporder.totalRecords = records
-                completed_jobs.append([temporder])
+                tempbucket = order_to_bucket([temporder])
+                completed_jobs.append(tempbucket)
                 order.totalPages -= temporder.totalPages
                 order.totalRecords -= temporder.totalRecords
                 counter += 1
@@ -320,15 +324,25 @@ def order_to_bucket(jobs):
 
 if __name__ == '__main__':
     g = MachineDefine.create_graph()
-    #j = Job(111111,"Letter", 180000, 36000,4,0,False,"Color","Env",2, 36, foldType="Tri")
+    j = Order(111111,"Letter", 180000, 18000,4,0,False,"Tri",0,"Env","Color","17in 50#")
+    j.other_attribute()
     jn = 100000
     openbuckets = {}
     completedjobs = []
-    for i in range(1000):
-        job = random_job(jn,color_setup="Color1",fold="Tri")
+    for i in range(1):
+        job = random_job(jn,color_setup="Color",fold="Tri",pages=180000,records=18000)
         job_class = json_to_order(job)
         jn += 1
-        openbuckets, completedjobs = find_matching_jobs(job_class,target=180000,open_buckets=openbuckets,completed_jobs=completedjobs)
+        openbuckets, completedjobs = find_matching_jobs([j],target=180000,open_buckets=openbuckets,completed_jobs=completedjobs)
+    graph, path = completedjobs[0].decide_rolls(g)
+    print(graph.get_distance_dict())
+    for i in path:
+        if type(i.id) != str:
+            print(i.id.name)
+        else:
+            print(i.id)
+    graph.length_of_path(graph.get_vertex("start"),graph.get_vertex("shipping"))
+    #print(path)
     """
     for item in completedjobs:
         print(item[0].jobNum, item[0].totalPages)

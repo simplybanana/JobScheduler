@@ -71,7 +71,7 @@ class Vertex:
         self.visited = True
 
 
-class Graph:
+class Graph(object):
     def __init__(self):
         self.vert_dict = {}
         self.num_vertices = 0
@@ -126,7 +126,8 @@ class Graph:
             for next_node in current_vertex.adjacent:
                 if next_node.visited:
                     continue
-                new_dist = min(max(current_vertex.get_weight(next_node) - current_vertex.get_distance(),0),current_vertex.get_weight(next_node))
+                new_dist = current_vertex.get_weight(next_node) + current_vertex.get_distance()
+                new_dist = max(current_vertex.get_weight(next_node) - current_vertex.get_distance(),0) + current_vertex.get_weight(next_node)
                 if new_dist < next_node.get_distance():
                     next_node.set_distance(new_dist)
                     next_node.set_previous(current_vertex)
@@ -205,9 +206,9 @@ def create_graph():
 
 
 def update_weights(graph, order):
-    job_level = order.jobNum[0]
+    job_level = order.jobs[0]
     if job_level.productType != "Perfect Bind":
-        if order.totalPages > 80000:
+        if order.totalPages > 90000:
             order.rolls = 2
         elif order.totalPages > 4000:
             order.rolls = 1
@@ -217,7 +218,6 @@ def update_weights(graph, order):
     for vertex in graph:
         for edge in vertex.adjacent:
             target = edge.id
-            weight = 0
             if type(target) == str:
                 weight = 0
             elif not target.running:
@@ -229,7 +229,7 @@ def update_weights(graph, order):
                     weight = float("inf")
                 elif job_level.colorsetup not in target.color:
                     weight = float("inf")
-                elif int(job_level.paperProfile[:2])*order.rolls > target.max_roll_size:
+                elif order.roll_size > target.max_roll_size:
                     weight = float("inf")
                 elif order.rolls == 0 and target.rolls != 0:
                     weight = float("inf")
@@ -249,7 +249,7 @@ def update_weights(graph, order):
             elif type(target) == Inserter:
                 if job_level.insertType != target.type:
                     weight = float("inf")
-                elif target not in order.insertGroup:
+                elif target.name not in order.insertGroup:
                     weight = float("inf")
                 elif order.rolls == 0 and target.flat is False:
                     weight = float("inf")
@@ -259,7 +259,11 @@ def update_weights(graph, order):
                     else:
                         target.setup_time = 30
                     weight = target.wait_time + (order.totalRecords / target.run_speed) * 60 + target.setup_time
+            else:
+                print('fail')
+                weight = 0
             vertex.adjacent[edge] = weight
+    return graph
 
 
 if __name__ == "__main__":
