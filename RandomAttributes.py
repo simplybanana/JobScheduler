@@ -51,6 +51,17 @@ class Bucket(object):
         self.roll_size = " "
 
     def decide_rolls(self, graph):
+        if self.jobs[0].productType != "Perfect Bind":
+            if self.totalPages > 80000:
+                self.rolls = 2
+            elif self.totalPages > 4000:
+                self.rolls = 1
+            else:
+                self.rolls = 0
+            self.roll_size = int(self.jobs[0].paperProfile[:2]) * self.rolls
+        elif self.jobs[0].productType == "Perfect Bind":
+            self.rolls = 1
+            self.roll_size = int(self.jobs[0].paperProfile[:2])
         graph = MachineDefine.update_weights(graph, self)
         path = graph.dijkstra(graph.get_vertex('start'),graph.get_vertex('shipping'))
         return graph, path
@@ -226,7 +237,7 @@ def below_target(order,key,target,open_buckets,completed_jobs):
     return open_buckets,completed_jobs
 
 
-def find_matching_jobs(jobs,target=180000, open_buckets=None, completed_jobs=None):
+def find_matching_jobs(jobs,target=360000, open_buckets=None, completed_jobs=None):
     if open_buckets is None:
         open_buckets = {}
     if completed_jobs is None:
@@ -341,7 +352,7 @@ if __name__ == '__main__':
         else:
             print(i.id)
     print(graph.length_of_path(graph.get_vertex("start"),graph.get_vertex("shipping")))
-    MachineDefine.update_queue(path)
+    MachineDefine.update_queue(path,completedjobs[0])
     #print(path)
     """
     for item in completedjobs:

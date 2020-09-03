@@ -126,7 +126,6 @@ class Graph(object):
             for next_node in current_vertex.adjacent:
                 if next_node.visited:
                     continue
-                #new_dist = current_vertex.get_weight(next_node) + current_vertex.get_distance()
                 if type(next_node.id) != str:
                     new_dist = current_vertex.get_weight(next_node) + max(next_node.id.wait_time - current_vertex.get_distance(),0)
                 else:
@@ -152,10 +151,10 @@ class Graph(object):
 
 
 def printer_define():
-    xp251 = Printing('XP251', 4224000, 30, True, ["Color", "Mono"], 2, 40)
-    xp13B = Printing('XP13', 4224000, 30, False, ["Color", "Mono"], 2, 40)
-    wp01 = Printing('WP01', 2112000, 30, False, ["Color", "Mono"], 1, 30)
-    jm01 = Printing('JM01', 1056000, 30, True, ["Color", "Mono"], 1, 20)
+    xp251 = Printing('XP251', 352000, 30, True, ["Color", "Mono"], 2, 40)
+    xp13B = Printing('XP13', 352000, 30, False, ["Color", "Mono"], 2, 40)
+    wp01 = Printing('WP01', 176000, 30, False, ["Color", "Mono"], 1, 30)
+    jm01 = Printing('JM01', 88000, 30, True, ["Color", "Mono"], 1, 20)
     indigo = Printing('Indigo', 132, 30, True, ["Color"], 0, 0)
     oce = Printing('OCE', 132, 30, True, ["Mono"], 0, 0)
     printers = [xp251, xp13B, wp01, jm01, oce, indigo]
@@ -210,14 +209,6 @@ def create_graph():
 
 def update_weights(graph, order):
     job_level = order.jobs[0]
-    if job_level.productType != "Perfect Bind":
-        if order.totalPages > 90000:
-            order.rolls = 2
-        elif order.totalPages > 4000:
-            order.rolls = 1
-        else:
-            order.rolls = 0
-        order.roll_size = int(job_level.paperProfile[:2]) * order.rolls
     for vertex in graph:
         for edge in vertex.adjacent:
             target = edge.id
@@ -269,12 +260,19 @@ def update_weights(graph, order):
     return graph
 
 
-def update_queue(path):
+def update_queue(path,order):
     for i in path:
         if type(i.id) != str:
             machine = i.id
             machine.wait_time += i.get_distance()
-
+            machine.queue.append(order)
+            if type(i.id) == Printing:
+                i.id.previous_roll = order.roll_size
+                i.id.previous_color = order.jobs[0].colorsetup
+            elif type(i.id) == Bindery:
+                i.id.previous_roll = order.rolls
+            elif type(i.id) == Inserter:
+                i.id.previous_foldtype = order.jobs[0].foldType
 
 if __name__ == "__main__":
     pass
