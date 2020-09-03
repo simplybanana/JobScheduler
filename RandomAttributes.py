@@ -335,13 +335,13 @@ if __name__ == '__main__':
         jn += 1
         openbuckets, completedjobs = find_matching_jobs([j],target=180000,open_buckets=openbuckets,completed_jobs=completedjobs)
     graph, path = completedjobs[0].decide_rolls(g)
-    print(graph.get_distance_dict())
     for i in path:
         if type(i.id) != str:
             print(i.id.name)
         else:
             print(i.id)
     print(graph.length_of_path(graph.get_vertex("start"),graph.get_vertex("shipping")))
+    MachineDefine.update_queue(path)
     #print(path)
     """
     for item in completedjobs:

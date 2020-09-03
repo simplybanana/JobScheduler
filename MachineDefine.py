@@ -269,5 +269,12 @@ def update_weights(graph, order):
     return graph
 
 
+def update_queue(path):
+    for i in path:
+        if type(i.id) != str:
+            machine = i.id
+            machine.wait_time += i.get_distance()
+
+
 if __name__ == "__main__":
     pass
