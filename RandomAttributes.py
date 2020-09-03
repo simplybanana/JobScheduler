@@ -341,7 +341,7 @@ if __name__ == '__main__':
             print(i.id.name)
         else:
             print(i.id)
-    graph.length_of_path(graph.get_vertex("start"),graph.get_vertex("shipping"))
+    print(graph.length_of_path(graph.get_vertex("start"),graph.get_vertex("shipping")))
     #print(path)
     """
     for item in completedjobs:

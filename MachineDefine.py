@@ -126,8 +126,11 @@ class Graph(object):
             for next_node in current_vertex.adjacent:
                 if next_node.visited:
                     continue
-                new_dist = current_vertex.get_weight(next_node) + current_vertex.get_distance()
-                new_dist = max(current_vertex.get_weight(next_node) - current_vertex.get_distance(),0) + current_vertex.get_weight(next_node)
+                #new_dist = current_vertex.get_weight(next_node) + current_vertex.get_distance()
+                if type(next_node.id) != str:
+                    new_dist = current_vertex.get_weight(next_node) + max(next_node.id.wait_time - current_vertex.get_distance(),0)
+                else:
+                    new_dist = current_vertex.get_weight(next_node) + current_vertex.get_distance()
                 if new_dist < next_node.get_distance():
                     next_node.set_distance(new_dist)
                     next_node.set_previous(current_vertex)
@@ -143,8 +146,8 @@ class Graph(object):
         path = self.dijkstra(start, target)
         distance = 0
         for i in path:
-            print(i.distance)
-            distance += i.distance
+            if type(i.id) != str:
+                distance += i.distance
         return distance
 
 
@@ -238,14 +241,14 @@ def update_weights(graph, order):
                         target.setup_time = 60
                     else:
                         target.setup_time = 5
-                    weight = target.wait_time + (order.totalPages / target.run_speed) * 60 + target.setup_time
+                    weight = (order.totalPages / target.run_speed) * 60 + target.setup_time
             elif type(target) == Bindery:
                 if job_level.productType != target.type:
                     weight = float("inf")
                 elif int(job_level.paperProfile[:2]) > target.max_roll_size:
                     weight = float("inf")
                 else:
-                    weight = target.wait_time + (order.totalRecords / target.run_speed) * 60 + target.setup_time
+                    weight = (order.totalRecords / target.run_speed) * 60 + target.setup_time
             elif type(target) == Inserter:
                 if job_level.insertType != target.type:
                     weight = float("inf")
@@ -258,7 +261,7 @@ def update_weights(graph, order):
                         target.setup_time = 15
                     else:
                         target.setup_time = 30
-                    weight = target.wait_time + (order.totalRecords / target.run_speed) * 60 + target.setup_time
+                    weight = (order.totalRecords / target.run_speed) * 60 + target.setup_time
             else:
                 print('fail')
                 weight = 0
